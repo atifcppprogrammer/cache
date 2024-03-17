@@ -323,61 +323,66 @@ func TestCache_Remove(t *testing.T) {
 }
 
 func TestCache_Contains(t *testing.T) {
-	cache := createCache(1, t)
-	addItems(cache, [][]string{{k, v}}, t)
-
-	found := cache.Contains(k)
-	if !found {
-		t.Errorf("%s needs to be found, but it is not found.", k)
+	tests := []struct {
+		name                  string
+		capacity              int
+		addPairs              [][]any
+		containKeys           []any
+		wantFound             []bool
+		postContainsListOrder []any
+	}{
+		{
+			name:                  "returns false for calling .Contains() for any key for empty cache",
+			capacity:              1,
+			addPairs:              [][]any{},
+			containKeys:           []any{k, k + k, k + k + k},
+			wantFound:             []bool{false, false, false},
+			postContainsListOrder: nil,
+		},
+		{
+			name:                  "returns false for keys not added to cache",
+			capacity:              1,
+			addPairs:              [][]any{{k, v}},
+			containKeys:           []any{"nonexistent"},
+			wantFound:             []bool{false},
+			postContainsListOrder: nil,
+		},
+		{
+			name:                  "returns true for keys added to cache",
+			capacity:              3,
+			addPairs:              [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			containKeys:           []any{k, k + k, k + k + k},
+			wantFound:             []bool{true, true, true},
+			postContainsListOrder: nil,
+		},
+		{
+			name:                  "preserves order for items in cache after calling .Contains()",
+			capacity:              3,
+			addPairs:              [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			containKeys:           []any{k, k + k, k + k + k},
+			wantFound:             []bool{true, true, true},
+			postContainsListOrder: []any{k + k + k, k + k, k},
+		},
 	}
-	t.Log(found)
-	t.Logf("%s found.", k)
-}
-
-func TestCache_ContainsEmptyCache(t *testing.T) {
-	cache := createCache(1, t)
-
-	found := cache.Contains(k)
-	if found {
-		t.Errorf("%s needs to be not exists, but it is found.", k)
-	}
-	if cache.Len() != 0 {
-		t.Errorf("cache needs to be empty, but it is not. len: %v", cache.Len())
-	}
-	t.Log(found)
-	t.Logf("%s does not exists.", k)
-}
-
-func TestCache_ContainsNonExistKey(t *testing.T) {
-	cache := createCache(1, t)
-	addItems(cache, [][]string{{k, v}}, t)
-
-	found := cache.Contains(k + k)
-	if found {
-		t.Errorf("%s needs to be not exists, but it is found.", k)
-	}
-	t.Logf("%s does not exist.", k+k)
-}
-
-func TestCache_ContainsCacheOrder(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-
-	order := []string{k + k + k, k + k, k}
-	i := 0
-	for e := cache.lst.Front(); e != nil; e = e.Next() {
-		if e.Value.(Item).Key != order[i] {
-			t.Errorf("order of the keys is wrong. expected %s, got %s", order[i], e.Value.(Item).Key)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		i++
+		t.Run(tt.name, func(t *testing.T) {
+			for i, key := range tt.containKeys {
+				found := c.Contains(key)
+				if found != tt.wantFound[i] {
+					t.Errorf("cache.Contains() found = %v, want %v", found, tt.wantFound[i])
+				}
+			}
+			if tt.postContainsListOrder != nil {
+				cmpCacheListOrder(t, c, tt.postContainsListOrder)
+			}
+		})
 	}
-	t.Logf("cache order is true")
 }
 
 func TestCache_Clear(t *testing.T) {
