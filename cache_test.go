@@ -247,47 +247,79 @@ func TestCache_Get(t *testing.T) {
 }
 
 func TestCache_Remove(t *testing.T) {
-	cache := createCache(2, t)
-	addItems(cache, [][]string{{k, v}}, t)
-
-	err := cache.Remove(k)
-	if err != nil {
-		t.Errorf(err.Error())
+	tests := []struct {
+		name           string
+		capacity       int
+		addPairs       [][]any
+		removeKeys     []any
+		wantErrs       []error
+		checkLength    bool
+		getRemovedKeys bool
+	}{
+		{
+			name:           "returns an error, when removing key from empty cache",
+			capacity:       1,
+			addPairs:       [][]any{},
+			removeKeys:     []any{k},
+			wantErrs:       []error{errEmptyCache},
+			checkLength:    false,
+			getRemovedKeys: false,
+		},
+		{
+			name:           "successfully removes keys of items added to cache",
+			capacity:       3,
+			addPairs:       [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			removeKeys:     []any{k, k + k, k + k + k},
+			wantErrs:       []error{nil, nil, nil},
+			checkLength:    true,
+			getRemovedKeys: false,
+		},
+		{
+			name:           "getting elements which has been removed returns nil",
+			capacity:       2,
+			addPairs:       [][]any{{k, v}, {k + k, v + v}},
+			removeKeys:     []any{k, k + k},
+			wantErrs:       []error{nil, nil},
+			checkLength:    true,
+			getRemovedKeys: true,
+		},
 	}
-	if cache.Len() != 0 {
-		t.Errorf("cache length should be 0, but got %v", cache.Len())
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
+		}
+		originalLength := c.Len()
+		t.Run(tt.name, func(t *testing.T) {
+			for i, key := range tt.removeKeys {
+				err := c.Remove(key)
+				if !errors.Is(err, tt.wantErrs[i]) {
+					t.Errorf("cache.Remove() error = %v, want %v", err, tt.wantErrs[i])
+					return
+				}
+			}
+			if tt.checkLength {
+				gotLength := c.Len()
+				wantLength := originalLength - len(tt.removeKeys)
+				if gotLength != wantLength {
+					t.Errorf("incorrect cache length, got %v, want %v", gotLength, wantLength)
+				}
+			}
+			if tt.getRemovedKeys {
+				for _, key := range tt.removeKeys {
+					got, gotFound := c.Get(key)
+					if gotFound != false {
+						t.Errorf("cache.Get() found = %v, want %v", gotFound, false)
+					}
+					if got != nil {
+						t.Errorf("cache.Get() = %v, want %v", got, nil)
+					}
+				}
+			}
+		})
 	}
-	t.Logf("%s-%s pair removed successfully.", k, v)
-}
-
-func TestCache_RemoveEmptyCache(t *testing.T) {
-	cache := createCache(1, t)
-
-	err := cache.Remove(k)
-	if err == nil {
-		t.Errorf("error needs to be non-nil, but it is nil.")
-	}
-	t.Logf(err.Error())
-}
-
-func TestCache_AddRemoveGet(t *testing.T) {
-	cache := createCache(1, t)
-	addItems(cache, [][]string{{k, v}}, t)
-
-	err := cache.Remove(k)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	t.Logf("%s-%s removed.", k, v)
-
-	val, found := cache.Get(k)
-	if found {
-		t.Errorf("found needs to be false, but it is true")
-	}
-	if val != nil {
-		t.Errorf("val needs to be nil, but it is %v", val)
-	}
-	t.Logf("not accessed %s-%s", k, v)
 }
 
 func TestCache_Contains(t *testing.T) {
