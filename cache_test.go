@@ -37,6 +37,21 @@ func addItems(cache *Cache, pairs [][]string, t *testing.T) {
 	}
 }
 
+func cmpCacheListOrder(t *testing.T, c *Cache, order []any) {
+	t.Helper()
+	i := 0
+	e := c.lst.Front()
+	for e != nil {
+		o := order[i]
+		k := e.Value.(Item).Key
+		if !reflect.DeepEqual(k, o) {
+			t.Errorf("incorrect key order, got %v, want %v at index %d", k, o, i)
+		}
+		e = e.Next()
+		i++
+	}
+}
+
 func TestCache_Add(t *testing.T) {
 	cache := createCache(3, t)
 	c := cache.Cap()
@@ -157,126 +172,78 @@ func TestCache_AddExceedCap(t *testing.T) {
 }
 
 func TestCache_Get(t *testing.T) {
-	cache := createCache(1, t)
-
-	addItems(cache, [][]string{{k, v}}, t)
-
-	val, found := cache.Get(k)
-	if !found {
-		t.Errorf("expected found true, but got false")
+	tests := []struct {
+		name             string
+		capacity         int
+		addPairs         [][]any
+		getPairs         [][]any
+		postGetListOrder []any
+	}{
+		{
+			name:             "expect pair to be found when its added to cache",
+			capacity:         1,
+			addPairs:         [][]any{{k, v}},
+			getPairs:         [][]any{{k, v}},
+			postGetListOrder: nil,
+		},
+		{
+			name:             "expect pair to not be found when its not added to cache",
+			capacity:         1,
+			addPairs:         [][]any{{k, v}},
+			getPairs:         [][]any{{"nonexistent", nil}},
+			postGetListOrder: nil,
+		},
+		{
+			name:             "cache list has correct order after getting front element",
+			capacity:         3,
+			addPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			getPairs:         [][]any{{k + k + k, v + v + v}},
+			postGetListOrder: []any{k + k + k, k + k, k},
+		},
+		{
+			name:             "cache list has correct order after getting middle element",
+			capacity:         3,
+			addPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			getPairs:         [][]any{{k + k, v + v}},
+			postGetListOrder: []any{k + k, k + k + k, k},
+		},
+		{
+			name:             "cache list has correct order after getting back element",
+			capacity:         3,
+			addPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			getPairs:         [][]any{{k, v}},
+			postGetListOrder: []any{k, k + k + k, k + k},
+		},
 	}
-	if val != v {
-		t.Errorf("expected %s, but got %s", v, val)
-	}
-	t.Logf("value retrieved from cache.")
-	t.Logf("got: %s-%s", k, val)
-}
-
-func TestCache_GetNotFound(t *testing.T) {
-	cache := createCache(1, t)
-
-	addItems(cache, [][]string{{k, v}}, t)
-
-	val, found := cache.Get("test")
-	if found {
-		t.Errorf("expected false, but got true")
-	}
-	if val != nil {
-		t.Errorf("expected nil, but got %v", val)
-	}
-}
-
-func TestCache_GetFrontElement(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-
-	val, found := cache.Get(k + k + k)
-	if !found {
-		t.Errorf("%s needs to be found, but didn't found.", k+k+k)
-	}
-	if val != v+v+v {
-		t.Errorf("expected value is %s, got %s", v+v+v, val)
-	}
-	if cache.Len() != cache.lst.Len() {
-		t.Errorf("expected value is %s, got %s", v+v+v, val)
-	}
-	order := []string{k + k + k, k + k, k}
-	i := 0
-	for e := cache.lst.Front(); e != nil; e = e.Next() {
-		if e.Value.(Item).Key != order[i] {
-			t.Errorf("order of the keys is wrong. expected %s, got %s", order[i], e.Value.(Item).Key)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		i++
+		t.Run(tt.name, func(t *testing.T) {
+			for _, pair := range tt.getPairs {
+				var (
+					want          = pair[1]
+					wantFound     = want != nil
+					got, gotFound = c.Get(pair[0])
+				)
+				if gotFound != wantFound {
+					t.Errorf("cache.Get() found = %v, want %v", gotFound, wantFound)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("cache.Get() = %v, want %v", got, want)
+				}
+			}
+			if c.Len() != c.lst.Len() {
+				t.Errorf("incorrect cache length, want %v, got %v", c.Len(), c.lst.Len())
+			}
+			if tt.postGetListOrder != nil {
+				cmpCacheListOrder(t, c, tt.postGetListOrder)
+			}
+		})
 	}
-	t.Logf("cache order is true")
-}
-
-func TestCache_GetMiddleElement(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-
-	val, found := cache.Get(k + k)
-	if !found {
-		t.Errorf("%s needs to be found, but didn't found.", k+k)
-	}
-	if val != v+v {
-		t.Errorf("expected value is %s, got %s", v+v, val)
-	}
-	if cache.Len() != cache.lst.Len() {
-		t.Errorf("cache length is wrong. want %v, got %v", cache.Len(), cache.lst.Len())
-	}
-	order := []string{k + k, k + k + k, k}
-	i := 0
-	for e := cache.lst.Front(); e != nil; e = e.Next() {
-		if e.Value.(Item).Key != order[i] {
-			t.Errorf("order of the keys is wrong. expected %s, got %s", order[i], e.Value.(Item).Key)
-		}
-		i++
-	}
-	t.Logf("cache order is true")
-}
-
-func TestCache_GetBackElement(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-
-	val, found := cache.Get(k)
-	if !found {
-		t.Errorf("%s needs to be found, but didn't found.", k)
-	}
-	if val != v {
-		t.Errorf("expected value is %s, got %s", v, val)
-	}
-	if cache.Len() != cache.lst.Len() {
-		t.Errorf("expected value is %s, got %s", v, val)
-	}
-	order := []string{k, k + k + k, k + k}
-	i := 0
-	for e := cache.lst.Front(); e != nil; e = e.Next() {
-		if e.Value.(Item).Key != order[i] {
-			t.Errorf("order of the keys is wrong. expected %s, got %s", order[i], e.Value.(Item).Key)
-		}
-		i++
-	}
-	t.Logf("cache order is true")
 }
 
 func TestCache_Remove(t *testing.T) {
