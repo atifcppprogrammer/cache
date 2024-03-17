@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -85,20 +87,44 @@ func TestCache_AddWithReplace(t *testing.T) {
 	t.Logf("%s-%s", sKey, sVal)
 }
 
-func TestCache_NewZeroCap(t *testing.T) {
-	_, err := New(0)
-	if err == nil {
-		t.Errorf("expected non-nil error, but got nil error.")
+func TestCache_New(t *testing.T) {
+	tests := []struct {
+		name     string
+		capacity int
+		want     *Cache
+		wantErr  error
+	}{
+		{
+			name:     "returns error when provided capacity == 0",
+			capacity: 0,
+			want:     nil,
+			wantErr:  errZeroCapacity,
+		},
+		{
+			name:     "returns error when provided capacity < 0",
+			capacity: -1,
+			want:     nil,
+			wantErr:  errNegCapacity,
+		},
+		{
+			name:     "creates cache with given capacity, when capacity > 0",
+			capacity: 20,
+			want:     createCache(20, t),
+			wantErr:  nil,
+		},
 	}
-	t.Logf(err.Error())
-}
-
-func TestCache_NewNegativeCap(t *testing.T) {
-	_, err := New(-1)
-	if err == nil {
-		t.Errorf("expected non-nil error, but got nil error.")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := New(tt.capacity)
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("cache.New() error = %v, want %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("cache.New() = %v, want %v", got, tt.want)
+			}
+		})
 	}
-	t.Logf(err.Error())
 }
 
 func TestCache_AddExceedCap(t *testing.T) {
