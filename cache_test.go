@@ -481,77 +481,68 @@ func TestCache_Keys(t *testing.T) {
 }
 
 func TestCache_Peek(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		peekPairs         [][]any
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "returns nil item for empty cache",
+			capacity:          1,
+			addPairs:          [][]any{},
+			peekPairs:         [][]any{{k, nil}},
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "expect pair to not be found when its not added to cache",
+			capacity:          1,
+			addPairs:          [][]any{{k, v}},
+			peekPairs:         [][]any{{"nonexistent", nil}},
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "expect pairs to be found when they are added to cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			peekPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "expect cache list order to be preserved after peeking pairs",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			peekPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			wantKeysListOrder: []any{k + k + k, k + k, k},
+		},
 	}
-	addItems(cache, pairs, t)
-
-	val, found := cache.Peek(k)
-	if !found {
-		t.Errorf("%s needs to be found, but couldn't found", k)
-	}
-	if val != v {
-		t.Errorf("expected value is %s, but got %s", v, val)
-	}
-	t.Logf("peek works successfully.")
-}
-
-func TestCache_PeekEmptyCache(t *testing.T) {
-	cache := createCache(3, t)
-
-	val, found := cache.Peek(k)
-	if found {
-		t.Errorf("%s needs to be not found, but it is found", k)
-	}
-	if val != nil {
-		t.Errorf("expected value is %s, but got %s", v, val)
-	}
-	t.Logf("peek works successfully with empty cache.")
-}
-
-func TestCache_PeekFreqCheck(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-
-	val, found := cache.Peek(k)
-	if !found {
-		t.Errorf("%s needs to be found, but couldn't found", k)
-	}
-	if val != v {
-		t.Errorf("expected value is %s, but got %s", v, val)
-	}
-
-	order := []string{k + k + k, k + k, k}
-	for e, i := cache.lst.Front(), 0; e != nil; e = e.Next() {
-		if tmpEle := e.Value.(Item).Key; order[i] != tmpEle {
-			t.Errorf("expected %s, got %s", order[i], tmpEle)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		i++
+		t.Run(tt.name, func(t *testing.T) {
+			for _, pair := range tt.peekPairs {
+				var (
+					want          = pair[1]
+					wantFound     = want != nil
+					got, gotFound = c.Peek(pair[0])
+				)
+				if gotFound != wantFound {
+					t.Errorf("cache.Peek() found = %v, want %v", gotFound, wantFound)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("cache.Peek() = %v, want %v", got, want)
+				}
+				if tt.wantKeysListOrder != nil {
+					cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+				}
+			}
+		})
 	}
-	t.Logf("cache order is true after peek.")
-}
-
-func TestCache_PeekNotExist(t *testing.T) {
-	cache := createCache(3, t)
-
-	val, found := cache.Peek(k)
-	if found {
-		t.Errorf("found should be false")
-	}
-	if val != nil {
-		t.Errorf("val needs to be nil, but it is %v", val)
-	}
-	t.Logf("value is %v", val)
 }
 
 func TestCache_RemoveOldest(t *testing.T) {
