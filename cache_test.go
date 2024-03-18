@@ -386,52 +386,54 @@ func TestCache_Contains(t *testing.T) {
 }
 
 func TestCache_Clear(t *testing.T) {
-	cache := createCache(3, t)
-	addItems(cache, [][]string{{k, v}}, t)
-
-	cache.Clear()
-	if cache.Len() != 0 {
-		t.Errorf("expected length is %v, got %v", 0, cache.Len())
+	tests := []struct {
+		name           string
+		capacity       int
+		addPairs       [][]any
+		checkListFront bool
+	}{
+		{
+			name:           "can successfully clear an empty cache",
+			capacity:       1,
+			addPairs:       [][]any{},
+			checkListFront: false,
+		},
+		{
+			name:           "can successfully clear a cache containing a single item",
+			capacity:       1,
+			addPairs:       [][]any{{k, v}},
+			checkListFront: false,
+		},
+		{
+			name:           "can successfully clear a cache containing multiple items",
+			capacity:       3,
+			addPairs:       [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			checkListFront: true,
+		},
 	}
-	if cache.lst.Len() != 0 {
-		t.Errorf("expected length of list.Len() is %v, got %v", 0, cache.lst.Len())
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			c.Clear()
+			if c.Len() != 0 {
+				t.Errorf("expected length s %v, got %v", 0, c.Len())
+			}
+			if c.lst.Len() != 0 {
+				t.Errorf("expected length of c.lst.Len() is %v, got %v", 0, c.lst.Len())
+			}
+			if tt.checkListFront {
+				if c.lst.Front() != nil {
+					f := c.lst.Front().Value.(Item)
+					t.Errorf("expected c.lst.Front() to be nil, got %s-%s", f.Key, f.Val)
+				}
+			}
+		})
 	}
-
-	t.Logf("cache cleared.")
-}
-
-func TestCache_ClearEmptyCache(t *testing.T) {
-	cache := createCache(3, t)
-
-	cache.Clear()
-	if cache.Len() != 0 {
-		t.Errorf("expected length is %v, got %v", 0, cache.Len())
-	}
-	if cache.lst.Len() != 0 {
-		t.Errorf("expected length of list.Len() is %v, got %v", 0, cache.lst.Len())
-	}
-
-	t.Logf("empty cache cleared.")
-}
-
-func TestCache_ClearMoreThanOneDataCache(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-
-	cache.Clear()
-	if cache.Len() != 0 {
-		t.Errorf("all data did not clear.")
-	}
-	if cache.lst.Front() != nil {
-		t.Errorf("front node is not nil. %s-%s", cache.lst.Front().Value.(Item).Key, cache.lst.Front().Value.(Item).Val)
-	}
-	t.Logf("all data removed.")
 }
 
 func TestCache_Keys(t *testing.T) {
