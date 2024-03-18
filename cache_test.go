@@ -177,46 +177,46 @@ func TestCache_AddExceedCap(t *testing.T) {
 
 func TestCache_Get(t *testing.T) {
 	tests := []struct {
-		name             string
-		capacity         int
-		addPairs         [][]any
-		getPairs         [][]any
-		postGetListOrder []any
+		name              string
+		capacity          int
+		addPairs          [][]any
+		getPairs          [][]any
+		wantKeysListOrder []any
 	}{
 		{
-			name:             "expect pair to be found when its added to cache",
-			capacity:         1,
-			addPairs:         [][]any{{k, v}},
-			getPairs:         [][]any{{k, v}},
-			postGetListOrder: nil,
+			name:              "expect pair to be found when its added to cache",
+			capacity:          1,
+			addPairs:          [][]any{{k, v}},
+			getPairs:          [][]any{{k, v}},
+			wantKeysListOrder: nil,
 		},
 		{
-			name:             "expect pair to not be found when its not added to cache",
-			capacity:         1,
-			addPairs:         [][]any{{k, v}},
-			getPairs:         [][]any{{"nonexistent", nil}},
-			postGetListOrder: nil,
+			name:              "expect pair to not be found when its not added to cache",
+			capacity:          1,
+			addPairs:          [][]any{{k, v}},
+			getPairs:          [][]any{{"nonexistent", nil}},
+			wantKeysListOrder: nil,
 		},
 		{
-			name:             "cache list has correct order after getting front element",
-			capacity:         3,
-			addPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
-			getPairs:         [][]any{{k + k + k, v + v + v}},
-			postGetListOrder: []any{k + k + k, k + k, k},
+			name:              "cache list has correct order after getting front element",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			getPairs:          [][]any{{k + k + k, v + v + v}},
+			wantKeysListOrder: []any{k + k + k, k + k, k},
 		},
 		{
-			name:             "cache list has correct order after getting middle element",
-			capacity:         3,
-			addPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
-			getPairs:         [][]any{{k + k, v + v}},
-			postGetListOrder: []any{k + k, k + k + k, k},
+			name:              "cache list has correct order after getting middle element",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			getPairs:          [][]any{{k + k, v + v}},
+			wantKeysListOrder: []any{k + k, k + k + k, k},
 		},
 		{
-			name:             "cache list has correct order after getting back element",
-			capacity:         3,
-			addPairs:         [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
-			getPairs:         [][]any{{k, v}},
-			postGetListOrder: []any{k, k + k + k, k + k},
+			name:              "cache list has correct order after getting back element",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			getPairs:          [][]any{{k, v}},
+			wantKeysListOrder: []any{k, k + k + k, k + k},
 		},
 	}
 	for _, tt := range tests {
@@ -243,8 +243,8 @@ func TestCache_Get(t *testing.T) {
 			if c.Len() != c.lst.Len() {
 				t.Errorf("incorrect cache length, want %v, got %v", c.Len(), c.lst.Len())
 			}
-			if tt.postGetListOrder != nil {
-				cmpCacheListOrder(t, c, tt.postGetListOrder)
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
 			}
 		})
 	}
@@ -328,44 +328,44 @@ func TestCache_Remove(t *testing.T) {
 
 func TestCache_Contains(t *testing.T) {
 	tests := []struct {
-		name                  string
-		capacity              int
-		addPairs              [][]any
-		containKeys           []any
-		wantFound             []bool
-		postContainsListOrder []any
+		name              string
+		capacity          int
+		addPairs          [][]any
+		containKeys       []any
+		wantFound         []bool
+		wantKeysListOrder []any
 	}{
 		{
-			name:                  "returns false for calling .Contains() for any key for empty cache",
-			capacity:              1,
-			addPairs:              [][]any{},
-			containKeys:           []any{k, k + k, k + k + k},
-			wantFound:             []bool{false, false, false},
-			postContainsListOrder: nil,
+			name:              "returns false for calling .Contains() for any key for empty cache",
+			capacity:          1,
+			addPairs:          [][]any{},
+			containKeys:       []any{k, k + k, k + k + k},
+			wantFound:         []bool{false, false, false},
+			wantKeysListOrder: nil,
 		},
 		{
-			name:                  "returns false for keys not added to cache",
-			capacity:              1,
-			addPairs:              [][]any{{k, v}},
-			containKeys:           []any{"nonexistent"},
-			wantFound:             []bool{false},
-			postContainsListOrder: nil,
+			name:              "returns false for keys not added to cache",
+			capacity:          1,
+			addPairs:          [][]any{{k, v}},
+			containKeys:       []any{"nonexistent"},
+			wantFound:         []bool{false},
+			wantKeysListOrder: nil,
 		},
 		{
-			name:                  "returns true for keys added to cache",
-			capacity:              3,
-			addPairs:              [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
-			containKeys:           []any{k, k + k, k + k + k},
-			wantFound:             []bool{true, true, true},
-			postContainsListOrder: nil,
+			name:              "returns true for keys added to cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			containKeys:       []any{k, k + k, k + k + k},
+			wantFound:         []bool{true, true, true},
+			wantKeysListOrder: nil,
 		},
 		{
-			name:                  "preserves order for items in cache after calling .Contains()",
-			capacity:              3,
-			addPairs:              [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
-			containKeys:           []any{k, k + k, k + k + k},
-			wantFound:             []bool{true, true, true},
-			postContainsListOrder: []any{k + k + k, k + k, k},
+			name:              "preserves order for items in cache after calling .Contains()",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			containKeys:       []any{k, k + k, k + k + k},
+			wantFound:         []bool{true, true, true},
+			wantKeysListOrder: []any{k + k + k, k + k, k},
 		},
 	}
 	for _, tt := range tests {
@@ -382,8 +382,8 @@ func TestCache_Contains(t *testing.T) {
 					t.Errorf("cache.Contains() found = %v, want %v", found, tt.wantFound[i])
 				}
 			}
-			if tt.postContainsListOrder != nil {
-				cmpCacheListOrder(t, c, tt.postContainsListOrder)
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
 			}
 		})
 	}
