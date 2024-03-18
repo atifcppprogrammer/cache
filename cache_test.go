@@ -39,6 +39,10 @@ func addItems(cache *Cache, pairs [][]string, t *testing.T) {
 
 func cmpCacheListOrder(t *testing.T, c *Cache, order []any) {
 	t.Helper()
+	if c.lst.Len() != len(order) {
+		t.Errorf("expect cache list to have length, %v, want %v", c.lst.Len(), len(order))
+	}
+
 	i := 0
 	e := c.lst.Front()
 	for e != nil {
@@ -437,38 +441,43 @@ func TestCache_Clear(t *testing.T) {
 }
 
 func TestCache_Keys(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "returns empty list for empty cache",
+			capacity:          1,
+			addPairs:          [][]any{},
+			wantKeysListOrder: []any{},
+		},
+		{
+			name:              "returns keys with order preserved for items in cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			wantKeysListOrder: []any{k + k + k, k + k, k},
+		},
 	}
-	addItems(cache, pairs, t)
-
-	keys := cache.Keys()
-	if len(keys) != cache.Len() {
-		t.Errorf("keys length and cache length are not the same.\nkeys length: %v, cache length: %v", len(keys), cache.Len())
-	}
-	if len(keys) != len(pairs) {
-		t.Errorf("keys length and pairs length are not the same.\nkeys length: %v, cache length: %v", len(keys), len(pairs))
-	}
-	for i, j := len(pairs)-1, 0; i >= 0; i-- {
-		if keys[i] != pairs[j][0] {
-			t.Errorf("%s and %s are not the same.", keys[i], pairs[j][0])
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		j++
+		t.Run(tt.name, func(t *testing.T) {
+			got := c.Keys()
+			if len(got) != c.Len() {
+				t.Errorf("expect keys length %v and cache length %v to be the same", len(got), c.Len())
+			}
+			if len(got) != len(tt.addPairs) {
+				t.Errorf("expect keys length %v and cache length %v to be the same", len(got), len(tt.addPairs))
+			}
+			cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+		})
 	}
-}
-
-func TestCache_KeysEmptyCache(t *testing.T) {
-	cache := createCache(3, t)
-
-	keys := cache.Keys()
-	if len(keys) != cache.Len() {
-		t.Errorf("keys length and cache length are not the same.\nkeys length: %v, cache length: %v", len(keys), cache.Len())
-	}
-	t.Logf("cache is empty.")
 }
 
 func TestCache_Peek(t *testing.T) {
