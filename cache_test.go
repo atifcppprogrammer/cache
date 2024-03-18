@@ -381,9 +381,9 @@ func TestCache_Contains(t *testing.T) {
 				if found != tt.wantFound[i] {
 					t.Errorf("cache.Contains() found = %v, want %v", found, tt.wantFound[i])
 				}
-			}
-			if tt.wantKeysListOrder != nil {
-				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+				if tt.wantKeysListOrder != nil {
+					cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+				}
 			}
 		})
 	}
