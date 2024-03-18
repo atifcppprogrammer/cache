@@ -546,73 +546,65 @@ func TestCache_Peek(t *testing.T) {
 }
 
 func TestCache_RemoveOldest(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		want              []any
+		wantLength        int
+		wantKeysListOrder []any
+	}{
+		{
+			name:              `returns ("", nil, false) for empty cache`,
+			capacity:          1,
+			addPairs:          [][]any{},
+			want:              []any{"", nil, false},
+			wantLength:        0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "removes expected oldest value for non-empty cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			want:              []any{k, v, true},
+			wantLength:        2,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "cache list has expected order after removing oldest",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			want:              []any{k, v, true},
+			wantLength:        2,
+			wantKeysListOrder: []any{k + k + k, k + k},
+		},
 	}
-	addItems(cache, pairs, t)
-	t.Logf("Data length in cache: %v", cache.Len())
-
-	key, val, ok := cache.RemoveOldest()
-	if !ok {
-		t.Errorf("expected ok value is %v, but got %v", true, ok)
-	}
-	if key != k {
-		t.Errorf("expected oldest key is %s, but got %s", k, key)
-	}
-	if val != v {
-		t.Errorf("expected oldest value is %s, but got %s", v, val.(Item).Val)
-	}
-	if cache.Len() != 2 {
-		t.Errorf("expected cache len is %v, but got %v", 2, cache.Len())
-	}
-	t.Logf("Oldest data removed.")
-}
-
-func TestCache_RemoveOldestEmptyCache(t *testing.T) {
-	cache := createCache(3, t)
-
-	key, val, ok := cache.RemoveOldest()
-	if ok {
-		t.Errorf("expected ok value is %v, but got %v", false, ok)
-	}
-	if key != "" {
-		t.Errorf("expected key is empty string, but got %s", key)
-	}
-	if val != nil {
-		t.Error("expected value is nil, but got ", v)
-	}
-	if cache.Len() != 0 {
-		t.Errorf("expected cache len is %v, but got %v", 0, cache.Len())
-	}
-}
-
-func TestCache_RemoveOldestCacheItemCheck(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-	t.Logf("Data length in cache: %v", cache.Len())
-
-	key, _, _ := cache.RemoveOldest()
-	if key != k {
-		t.Errorf("expected key is %s, but got %s", k, key)
-	}
-	order := []string{k + k + k, k + k}
-	for e, i := cache.lst.Front(), 0; e != nil; e = e.Next() {
-		if tmpEle := e.Value.(Item).Key; tmpEle != order[i] {
-			t.Errorf("expected %s, got %s", order[i], tmpEle)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		i++
+		t.Run(tt.name, func(t *testing.T) {
+			gotKey, gotVal, gotOk := c.RemoveOldest()
+			if gotKey != tt.want[0] {
+				t.Errorf("removed oldest key, got %v want %v", gotKey, tt.want[0])
+			}
+			if gotVal != tt.want[1] {
+				t.Errorf("removed oldest val, got %v want %v", gotVal, tt.want[1])
+			}
+			if gotOk != tt.want[2] {
+				t.Errorf("ok value, got %v want %v", gotOk, tt.want[2])
+			}
+			if c.Len() != tt.wantLength {
+				t.Errorf("cache len, got %v, want %v", c.Len(), tt.wantLength)
+			}
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+			}
+		})
 	}
-	t.Logf("cache order is true.")
 }
 
 func TestCache_Resize(t *testing.T) {
