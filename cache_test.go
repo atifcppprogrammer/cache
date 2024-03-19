@@ -744,52 +744,55 @@ func TestCache_Cap(t *testing.T) {
 }
 
 func TestCache_Replace(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		replacePair       []any
+		wantErr           error
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "replaces key value in cache when key exists",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			replacePair:       []any{k, k + v},
+			wantErr:           nil,
+			wantKeysListOrder: []any{k + k + k, k + k, k},
+		},
+		{
+			name:              "replaces key value in cache when key exists",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			replacePair:       []any{k + v, k + v},
+			wantErr:           errKeyNotExist,
+			wantKeysListOrder: nil,
+		},
 	}
-	addItems(cache, pairs, t)
-	t.Logf("Data length in cache: %v", cache.Len())
-
-	err := cache.Replace(k, k+v)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	val, found := cache.Peek(k)
-	if !found {
-		t.Errorf("%s does not exist.", k)
-	}
-	t.Logf("key (%s) value (%s) replaced with value (%s)", k, v, val)
-
-	order := []string{k + k + k, k + k, k}
-	for e, i := cache.lst.Front(), 0; e != nil; e = e.Next() {
-		if ele := e.Value.(Item).Key; ele != order[i] {
-			t.Errorf("expected %s, got %s", order[i], ele)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		i++
+		t.Run(tt.name, func(t *testing.T) {
+			err := c.Replace(tt.replacePair[0], tt.replacePair[1])
+			if !errors.Is(err, tt.wantErr) {
+				t.Errorf("unexpected error, got %v, want %v", err, tt.wantErr)
+			}
+			value, found := c.Peek(tt.replacePair[0])
+			if tt.wantErr == nil && !found {
+				t.Error("expected key to be found but was not")
+			}
+			if tt.wantErr == nil && !reflect.DeepEqual(value, tt.replacePair[1]) {
+				t.Errorf("unexpected key value, got %v want %v", value, tt.replacePair[1])
+			}
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+			}
+		})
 	}
-	t.Logf("order of the cache data is true.")
-}
-
-func TestCache_ReplaceNotExistKey(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-	addItems(cache, pairs, t)
-	t.Logf("Data length in cache: %v", cache.Len())
-
-	err := cache.Replace(k+v, k+v)
-	if err == nil {
-		t.Errorf("it should return error because of not existing key.")
-	}
-	t.Logf("key did not change, because: %s", err.Error())
 }
 
 func TestCache_ClearExpiredDataEmptyCache(t *testing.T) {
