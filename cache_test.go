@@ -608,94 +608,75 @@ func TestCache_RemoveOldest(t *testing.T) {
 }
 
 func TestCache_Resize(t *testing.T) {
-	cache := createCache(10, t)
-
-	cache.len = 5
-	diff := cache.Resize(8)
-	if diff != 0 {
-		t.Errorf("diff needs to be 0, but it is %v", diff)
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		newCapacity       int
+		want              int
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "resizes with no diff when newCap < cap and newCap < len",
+			capacity:          7,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			newCapacity:       5,
+			want:              0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "resizes with no diff when newCap < cap and newCap = len",
+			capacity:          7,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			newCapacity:       3,
+			want:              0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "resizes with no diff when newCap = cap and newCap = len",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			newCapacity:       3,
+			want:              0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "resizes with no diff when newCap > cap and newCap > len",
+			capacity:          1,
+			addPairs:          [][]any{{k, v}},
+			newCapacity:       3,
+			want:              0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "resizes with diff and correct order when newCap < cap and newCap < len",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			newCapacity:       1,
+			want:              2,
+			wantKeysListOrder: []any{k + k + k},
+		},
 	}
-	if cache.Cap() != 8 {
-		t.Errorf("capacity should be 8, but it is %v", cache.Cap())
-	}
-	t.Logf("capacity is %v", cache.Cap())
-	t.Logf("diff is %v", diff)
-}
-
-func TestCache_ResizeEqualLenSize(t *testing.T) {
-	cache := createCache(10, t)
-
-	cache.len = 5
-	diff := cache.Resize(5)
-	if diff != 0 {
-		t.Errorf("diff needs to be 0, but it is %v", diff)
-	}
-	if cache.Cap() != 5 {
-		t.Errorf("capacity should be 5, but it is %v", cache.Cap())
-	}
-	t.Logf("capacity is %v", cache.Cap())
-	t.Logf("diff is %v", diff)
-}
-
-func TestCache_ResizeEqualCapLenSize(t *testing.T) {
-	cache := createCache(10, t)
-
-	cache.len = 10
-	diff := cache.Resize(10)
-	if diff != 0 {
-		t.Errorf("diff needs to be 0, but it is %v", diff)
-	}
-	if cache.Cap() != 10 {
-		t.Errorf("capacity should be 10, but it is %v", cache.Cap())
-	}
-	t.Logf("capacity is %v", cache.Cap())
-	t.Logf("diff is %v", diff)
-}
-
-func TestCache_ResizeExceedCap(t *testing.T) {
-	cache := createCache(10, t)
-
-	cache.len = 5
-	diff := cache.Resize(12)
-	if diff != 0 {
-		t.Errorf("diff needs to be 0, but it is %v", diff)
-	}
-	if cache.Cap() != 12 {
-		t.Errorf("capacity should be 8, but it is %v", cache.Cap())
-	}
-	t.Logf("capacity is %v", cache.Cap())
-	t.Logf("diff is %v", diff)
-}
-
-func TestCache_ResizeDecreaseCap(t *testing.T) {
-	cache := createCache(10, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-		{k + k + k + k, v + v + v + v},
-		{k + k + k + k + k, v + v + v + v + v},
-	}
-	addItems(cache, pairs, t)
-	t.Logf("Data length in cache: %v", cache.Len())
-
-	diff := cache.Resize(3)
-	if diff != 2 {
-		t.Errorf("diff needs to be 2, but it is %v", diff)
-	}
-	if cache.Cap() != 3 {
-		t.Errorf("new capacity needs to be 3, but it is %v", cache.Cap())
-	}
-
-	order := []string{k + k + k + k + k, k + k + k + k, k + k + k}
-	for e, i := cache.lst.Front(), 0; e != nil; e = e.Next() {
-		if tmpEle := e.Value.(Item).Key; tmpEle != order[i] {
-			t.Errorf("expected %s, got %s", order[i], tmpEle)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
 		}
-		i++
+		t.Run(tt.name, func(t *testing.T) {
+			got := c.Resize(tt.newCapacity)
+			if got != tt.want {
+				t.Errorf("unexpected diff, got %v, want %v", got, tt.want)
+			}
+			if c.Cap() != tt.newCapacity {
+				t.Errorf("unexpected post resize capacity, got %v, want %v", c.Cap(), tt.newCapacity)
+			}
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+			}
+		})
 	}
-	t.Logf("new cache order is true")
 }
 
 func TestCache_Len(t *testing.T) {
