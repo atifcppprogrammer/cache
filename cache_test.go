@@ -680,27 +680,67 @@ func TestCache_Resize(t *testing.T) {
 }
 
 func TestCache_Len(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
+	tests := []struct {
+		name     string
+		capacity int
+		addPairs [][]any
+		want     int
+	}{
+		{
+			name:     "creates cache with expected length",
+			capacity: 2,
+			addPairs: [][]any{{k, v}, {k + k, v + v}},
+			want:     2,
+		},
+		{
+			name:     "cache len should never exceed cache capacity",
+			capacity: 2,
+			addPairs: [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			want:     2,
+		},
 	}
-	addItems(cache, pairs, t)
-
-	if cache.Len() != 2 {
-		t.Errorf("cache length is wrong. expected %v, got %v", 2, cache.Len())
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := c.Len(); got != tt.want {
+				t.Errorf("unexpected cache length, got %v want %v", got, tt.want)
+			}
+		})
 	}
-	t.Logf("Data length in cache: %v", cache.Len())
 }
 
 func TestCache_Cap(t *testing.T) {
-	cache := createCache(3, t)
-
-	if cache.Cap() != 3 {
-		t.Errorf("capacity should be 3, but it is %v", cache.Cap())
+	tests := []struct {
+		name     string
+		capacity int
+		addPairs [][]any
+		want     int
+	}{
+		{
+			name:     "creates cache with provided capacity",
+			capacity: 3,
+			addPairs: [][]any{{k, v}, {k + k, v + v}},
+			want:     3,
+		},
 	}
-	t.Logf("capacity is %v", cache.Cap())
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		for _, pair := range tt.addPairs {
+			k, _ := pair[0].(string)
+			v, _ := pair[1].(string)
+			addItems(c, [][]string{{k, v}}, t)
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := c.Cap(); got != tt.want {
+				t.Errorf("unexpected cache capacity, got %v want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestCache_Replace(t *testing.T) {
