@@ -69,53 +69,60 @@ func cmpCacheListOrder(t *testing.T, c *Cache, order []any) {
 }
 
 func TestCache_Add(t *testing.T) {
-	cache := createCache(3, t)
-	c := cache.Cap()
-	if c != 3 {
-		t.Errorf("capacity is wrong. want %v, got %v", 3, c)
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		wantLength        int
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "successfully adds a single item to an empty cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v}},
+			wantLength:        1,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "successfully adds multiple items to an empty cache",
+			capacity:          5,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			wantLength:        3,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "replaces LRU item when added item count exceeds capacity",
+			capacity:          2,
+			addPairs:          [][]any{{k, v}, {k + k, v + v}, {k + k + k, v + v + v}},
+			wantLength:        2,
+			wantKeysListOrder: []any{k + k + k, k + k},
+		},
 	}
-
-	addItems(cache, [][]string{{k, v}}, t)
-
-	if cache.lst.Front().Value.(Item).Expiration != 0 {
-		t.Errorf("expiration must be 0, but it is %v", cache.lst.Front().Value.(Item).Expiration)
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		t.Run(tt.name, func(t *testing.T) {
+			for _, pair := range tt.addPairs {
+				var (
+					wantErr error = nil
+					wantExp int64 = 0
+				)
+				err := c.Add(pair[0], pair[1], time.Duration(wantExp))
+				if !errors.Is(err, wantErr) {
+					t.Errorf("unexpected error, got error %v, want %v", err, wantErr)
+					return
+				}
+				if exp := c.lst.Front().Value.(Item).Expiration; exp != wantExp {
+					t.Errorf("unexpected expiration, got %v want %v", exp, wantExp)
+				}
+			}
+			if c.Len() != tt.wantLength {
+				t.Errorf("unexpected length, got %v, want %v", c.Len(), tt.wantLength)
+			}
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+			}
+		})
 	}
-
-	t.Logf("%s-%s key-value pair added.", k, v)
-	l := cache.Len()
-	if l != 1 {
-		t.Errorf("length is wrong. want %v, got %v", 1, l)
-	}
-}
-
-func TestCache_AddWithReplace(t *testing.T) {
-	cache := createCache(2, t)
-	c := cache.Cap()
-	if c != 2 {
-		t.Errorf("capacity is wrong. want %v, got %v", 2, c)
-	}
-	t.Logf("cache capacity is true.")
-	pairs := [][]string{{"key1", "val1"}, {"key2", "val2"}, {"key3", "val3"}}
-	for i := 0; i < len(pairs); i++ {
-		err := cache.Add(pairs[i][0], pairs[i][1], 0)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		t.Logf("new item added.")
-		if i == 0 && cache.Len() != 1 {
-			t.Errorf("len must be 1, but it is %v", cache.Len())
-		}
-		if i == 1 && cache.Len() != 2 {
-			t.Errorf("len must be 2, but it is %v", cache.Len())
-		}
-	}
-	if cache.Len() != 2 {
-		t.Errorf("len needs to be 2, but it is %v", cache.Len())
-	}
-	fKey, fVal := cache.lst.Front().Value.(Item).Val.(string), cache.lst.Front().Value.(Item).Key
-	sKey, sVal := cache.lst.Back().Value.(Item).Val.(string), cache.lst.Back().Value.(Item).Key
-	t.Logf("%s-%s", fKey, fVal)
-	t.Logf("%s-%s", sKey, sVal)
 }
 
 func TestCache_New(t *testing.T) {
@@ -156,35 +163,6 @@ func TestCache_New(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestCache_AddExceedCap(t *testing.T) {
-	cache := createCache(1, t)
-
-	err := cache.Add(k, v, 0)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	t.Logf("%s-%s added.", k, v)
-	t.Logf("len: %v, cap: %v", cache.Len(), cache.Cap())
-
-	addItems(cache, [][]string{{k + k, v + v}}, t)
-	t.Logf("len: %v, cap: %v", cache.Len(), cache.Cap())
-
-	v, found := cache.Peek(k + k)
-	if !found {
-		t.Errorf("%s needs to be found.", k+k)
-	}
-	t.Logf("%s in cache.", v)
-
-	v, f := cache.Peek(k)
-	if f {
-		t.Errorf("%s should not be in the cache.", k)
-	}
-	if v != nil {
-		t.Errorf("%v should be nil.", v)
-	}
-	t.Logf("%s not in cache.", k)
 }
 
 func TestCache_Get(t *testing.T) {
