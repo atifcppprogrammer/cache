@@ -49,6 +49,16 @@ func addItemsWithExp(t *testing.T, cache *Cache, pairs [][]any) {
 	}
 }
 
+func findItem(t *testing.T, c *Cache, key any) (Item, bool) {
+	t.Helper()
+	for e := c.lst.Front(); e != nil; e = e.Next() {
+		if item := e.Value.(Item); item.Key == key {
+			return item, true
+		}
+	}
+	return Item{}, false
+}
+
 func cmpCacheListOrder(t *testing.T, c *Cache, order []any) {
 	t.Helper()
 	if c.lst.Len() != len(order) {
@@ -838,49 +848,68 @@ func TestCache_ClearExpiredData(t *testing.T) {
 }
 
 func TestCache_UpdateVal(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		updatePairs       [][]any
+		wantErrs          []error
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "returns error if attempting to update item in an empty cache",
+			capacity:          3,
+			addPairs:          [][]any{},
+			updatePairs:       [][]any{{k, v}},
+			wantErrs:          []error{errNoKey},
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "returns error if attempt to update non-existent key",
+			capacity:          3,
+			addPairs:          [][]any{{k, v, time.Hour}},
+			updatePairs:       [][]any{{"nonexistant", nil}},
+			wantErrs:          []error{errNoKey},
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "updates item values when item key is present in cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v, time.Hour}, {k + k, v + v, time.Hour}, {k + k + k, v + v + v, time.Hour}},
+			updatePairs:       [][]any{{k, k + v}},
+			wantErrs:          []error{nil},
+			wantKeysListOrder: []any{k, k + k + k, k + k},
+		},
 	}
-
-	for i := 0; i < len(pairs); i++ {
-		err := cache.Add(pairs[i][0], pairs[i][1], 1*time.Hour)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		t.Logf("%s-%s added.", pairs[i][0], pairs[i][1])
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		addItemsWithExp(t, c, tt.addPairs)
+		t.Run(tt.name, func(t *testing.T) {
+			for i, pair := range tt.updatePairs {
+				var (
+					oldItem, _   = findItem(t, c, pair[0])
+					newItem, err = c.UpdateVal(pair[0], pair[1])
+					wantErr      = tt.wantErrs[i]
+				)
+				if !errors.Is(err, wantErr) {
+					t.Errorf("unexpected error, got %v, want %v", err, wantErr)
+					return
+				}
+				if wantErr == nil && newItem.Key != oldItem.Key {
+					t.Errorf("unexpected updated item key, got %v, want %v", newItem.Key, oldItem.Key)
+				}
+				if wantErr == nil && !reflect.DeepEqual(newItem.Val, pair[1]) {
+					t.Errorf("unexpected updated item value, got %v, want %v", newItem.Val, pair[1])
+				}
+				if wantErr == nil && newItem.Expiration != oldItem.Expiration {
+					t.Errorf("unexpected updated item expiration, got %v, want %v", newItem.Expiration, oldItem.Expiration)
+				}
+			}
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+			}
+		})
 	}
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-
-	timeExp := cache.lst.Back().Value.(Item).Expiration
-	newItem, err := cache.UpdateVal(k, k+v)
-	if err != nil {
-		t.Errorf(err.Error())
-	}
-	if newItem.Key != k {
-		t.Errorf("expected key is %s, got %s", k, newItem.Key)
-	}
-	if newItem.Val != k+v {
-		t.Errorf("expected value is %s, got %s", k+v, newItem.Val)
-	}
-	if newItem.Expiration != timeExp {
-		t.Errorf("expected expiration time is %v, got %v", timeExp, newItem.Expiration)
-	}
-	t.Logf("data is updated successfully.")
-
-	order := []string{k, k + k + k, k + k}
-	i := 0
-	for e := cache.lst.Front(); e != nil; e = e.Next() {
-		tmpItem := e.Value.(Item)
-		if tmpItem.Key != order[i] {
-			t.Errorf("expected key %s, got %s", order[i], tmpItem.Key)
-		}
-		i++
-	}
-	t.Logf("cache data order is true.")
 }
 
 func TestCache_UpdateExpirationDate(t *testing.T) {
@@ -927,20 +956,6 @@ func TestCache_UpdateExpirationDate(t *testing.T) {
 		i++
 	}
 	t.Logf("cache data order is true.")
-}
-
-func TestCache_UpdateValEmptyCache(t *testing.T) {
-	cache := createCache(3, t)
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-
-	newItem, err := cache.UpdateVal(k, k+v)
-	if err == nil {
-		t.Errorf("error needs to be not nil.")
-	}
-	if newItem != (Item{}) {
-		t.Errorf("returned item needs to be nil.")
-	}
-	t.Logf(err.Error())
 }
 
 func TestCache_UpdateExpirationDateEmptyCache(t *testing.T) {
