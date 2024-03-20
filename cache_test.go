@@ -37,6 +37,18 @@ func addItems(cache *Cache, pairs [][]string, t *testing.T) {
 	}
 }
 
+func addItemsWithExp(t *testing.T, cache *Cache, pairs [][]any) {
+	t.Helper()
+	for i := 0; i < len(pairs); i++ {
+		exp := pairs[i][2].(time.Duration)
+		err := cache.Add(pairs[i][0], pairs[i][1], exp)
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		t.Logf("%s-%s added.", pairs[i][0], pairs[i][1])
+	}
+}
+
 func cmpCacheListOrder(t *testing.T, c *Cache, order []any) {
 	t.Helper()
 	if c.lst.Len() != len(order) {
@@ -795,105 +807,56 @@ func TestCache_Replace(t *testing.T) {
 	}
 }
 
-func TestCache_ClearExpiredDataEmptyCache(t *testing.T) {
-	cache := createCache(3, t)
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-
-	cache.ClearExpiredData()
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-	t.Logf("No data removed.")
-}
-
 func TestCache_ClearExpiredData(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
+	tests := []struct {
+		name              string
+		capacity          int
+		addPairs          [][]any
+		wantLength        int
+		wantKeysListOrder []any
+	}{
+		{
+			name:              "successfully clears empty cache",
+			capacity:          3,
+			addPairs:          [][]any{},
+			wantLength:        0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "clears all expired data from cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v, -1 * time.Hour}, {k + k, v + v, -1 * time.Hour}, {k + k + k, v + v + v, -1 * time.Hour}},
+			wantLength:        0,
+			wantKeysListOrder: nil,
+		},
+		{
+			name:              "clears only expired data from cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v, time.Hour}, {k + k, v + v, -1 * time.Hour}, {k + k + k, v + v + v, time.Hour}},
+			wantLength:        2,
+			wantKeysListOrder: []any{k + k + k, k},
+		},
+		{
+			name:              "clears no unexpired data from cache",
+			capacity:          3,
+			addPairs:          [][]any{{k, v, time.Hour}, {k + k, v + v, time.Hour}, {k + k + k, v + v + v, time.Hour}},
+			wantLength:        3,
+			wantKeysListOrder: []any{k + k + k, k + k, k},
+		},
 	}
-	for i := 0; i < len(pairs); i++ {
-		err := cache.Add(pairs[i][0], pairs[i][1], -1*time.Hour)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		t.Logf("%s-%s added.", pairs[i][0], pairs[i][1])
+	for _, tt := range tests {
+		c := createCache(tt.capacity, t)
+		addItemsWithExp(t, c, tt.addPairs)
+		t.Run(tt.name, func(t *testing.T) {
+			c.ClearExpiredData()
+			if c.Len() != tt.wantLength {
+				t.Errorf("unexpected length, got %v, want %v", c.Len(), tt.wantLength)
+			}
+			if tt.wantKeysListOrder != nil {
+				cmpCacheListOrder(t, c, tt.wantKeysListOrder)
+			}
+		})
 	}
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-
-	cache.ClearExpiredData()
-	if cache.Len() != 0 {
-		t.Errorf("all data needs to be deleted, but the length is %v", cache.Len())
-	}
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-	t.Logf("All data removed.")
-}
-
-func TestCache_ClearExpiredSomeData(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-
-	var err error
-	for i := 0; i < len(pairs); i++ {
-		if i == 1 {
-			err = cache.Add(pairs[i][0], pairs[i][1], 1*time.Hour)
-		} else {
-			err = cache.Add(pairs[i][0], pairs[i][1], -1*time.Hour)
-		}
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		t.Logf("%s-%s added.", pairs[i][0], pairs[i][1])
-	}
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-
-	cache.ClearExpiredData()
-	if cache.Len() != 1 {
-		t.Errorf("cache len needs to be 1, but it is %v", cache.Len())
-	}
-	if cache.lst.Front().Value.(Item).Key != k+k {
-		gotKey := cache.lst.Front().Value.(Item).Key
-		gotVal := cache.lst.Front().Value.(Item).Val
-		t.Errorf("front data needs to be (%s-%s) pair, but it is (%s-%s).", k+k, v+v, gotKey, gotVal)
-	}
-	t.Logf("Len: %v, Cap: %v", cache.Len(), cache.Cap())
-	t.Logf("All data removed except one.")
-}
-
-func TestCache_ClearExpiredNoData(t *testing.T) {
-	cache := createCache(3, t)
-
-	pairs := [][]string{
-		{k, v},
-		{k + k, v + v},
-		{k + k + k, v + v + v},
-	}
-
-	for i := 0; i < len(pairs); i++ {
-		err := cache.Add(pairs[i][0], pairs[i][1], 1*time.Hour)
-		if err != nil {
-			t.Errorf(err.Error())
-		}
-		t.Logf("%s-%s added.", pairs[i][0], pairs[i][1])
-	}
-	t.Logf("Len: %v Cap: %v", cache.Len(), cache.Cap())
-
-	cache.ClearExpiredData()
-	if cache.Len() != 3 {
-		t.Errorf("cache len needs to be 3, but it is %v", cache.Len())
-	}
-	if cache.lst.Front().Value.(Item).Key != k+k+k {
-		gotKey := cache.lst.Front().Value.(Item).Key
-		gotVal := cache.lst.Front().Value.(Item).Val
-		t.Errorf("front data needs to be (%s-%s) pair, but it is (%s-%s).", k+k+k, v+v+v, gotKey, gotVal)
-	}
-	t.Logf("Len: %v, Cap: %v", cache.Len(), cache.Cap())
-	t.Logf("All data removed except one.")
 }
 
 func TestCache_UpdateVal(t *testing.T) {
