@@ -979,47 +979,48 @@ func TestCache_UpdateExpirationDateEmptyCache(t *testing.T) {
 	t.Logf(err.Error())
 }
 
-func TestItem_Expired(t *testing.T) {
-	item := Item{
-		Key:        k,
-		Val:        v,
-		Expiration: time.Now().Add(time.Minute * -1).UnixNano(),
-	}
-
-	expired := item.Expired()
-	if !expired {
-		t.Errorf("It needs to be expired, but it is not expired. Value is %v", expired)
-	}
-	t.Logf("item did not expire")
-	t.Logf("expired value is %v", expired)
-}
-
 func TestItem_NotExpired(t *testing.T) {
-	item := Item{
-		Key:        k,
-		Val:        v,
-		Expiration: time.Now().Add(time.Hour * 1).UnixNano(),
+	tests := []struct {
+		name     string
+		key      any
+		val      any
+		duration time.Duration
+		want     bool
+	}{
+		{
+			name:     "returns true for expired item",
+			key:      k,
+			val:      v,
+			duration: -1 * time.Hour,
+			want:     true,
+		},
+		{
+			name:     "returns false for unexpired item",
+			key:      k,
+			val:      v,
+			duration: time.Hour,
+			want:     false,
+		},
+		{
+			name:     "returns false when expiration = 0",
+			key:      k,
+			val:      v,
+			duration: 0,
+			want:     false,
+		},
 	}
-
-	expired := item.Expired()
-	if expired {
-		t.Errorf("It needs to not expired, but it is expired. Value is %v", expired)
+	for _, tt := range tests {
+		var exp int64
+		if tt.duration != 0 {
+			exp = time.Now().Add(tt.duration).UnixNano()
+		}
+		item := Item{
+			Key:        tt.key,
+			Val:        tt.val,
+			Expiration: exp,
+		}
+		if got := item.Expired(); got != tt.want {
+			t.Errorf("unexpected expired status, got %v, want %v", got, tt.want)
+		}
 	}
-	t.Logf("item did not expire")
-	t.Logf("expired value is %v", expired)
-}
-
-func TestItem_ExpiredNotSet(t *testing.T) {
-	item := Item{
-		Key:        k,
-		Val:        v,
-		Expiration: 0,
-	}
-
-	expired := item.Expired()
-	if expired {
-		t.Errorf("It needs to not expired, but it is expired. Value is %v", expired)
-	}
-	t.Logf("item did not expire")
-	t.Logf("expired value is %v", expired)
 }
